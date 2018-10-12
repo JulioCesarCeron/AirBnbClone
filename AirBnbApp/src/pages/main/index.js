@@ -116,8 +116,9 @@ class Main extends Component {
 		!this.state.cameraModalOpened && <Marker resizeMode="contain" source={require('../../images/marker.png')} />;
 
 	renderLocations = () =>
-		this.state.locations.map((location) => (
+		this.state.locations.map((location, i) => (
 			<MapboxGL.PointAnnotation
+                key={i}
 				id={location.id.toString()}
 				coordinate={[ parseFloat(location.longitude), parseFloat(location.latitude) ]}
 			>
@@ -307,14 +308,17 @@ class Main extends Component {
 			});
 
 			const imagesData = new FormData();
-
+            
 			images.forEach((image, index) => {
-				imagesData.append('image', {
-					uri: image.uri,
+                imagesData.append('image', {
+                    uri: image.uri,
 					type: 'image/jpeg',
 					name: `${newRealtyResponse.data.title}_${index}.jpg`
 				});
 			});
+            
+            console.log('newRealtyResponse.data.id', newRealtyResponse.data.id);
+            console.log('imagesData', imagesData);
 
 			await api.post(`/properties/${newRealtyResponse.data.id}/images`, imagesData);
 
@@ -322,7 +326,8 @@ class Main extends Component {
 			this.handleDataModalClose();
 			this.setState({ newRealty: false });
 		} catch (err) {
-			console.tron.log(err);
+            console.log(err);
+            console.log(JSON.stringify(err.message));
 		}
 	};
 

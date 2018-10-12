@@ -26,9 +26,10 @@ export default class SignIn extends Component {
 		error: ''
 	};
 
-	componentDidMount() {
+	/*componentDidMount() {
 		try {
 			const token = AsyncStorage.getItem('@AirBnbApp:token');
+			console.log('token', token);
 			if (token !== null) {
 				const resetAction = StackActions.reset({
 					index: 0,
@@ -39,7 +40,7 @@ export default class SignIn extends Component {
 		} catch (error) {
 			console.log('error token', error);
 		}
-	}
+	}*/
 
 	handleEmailChange = (email) => {
 		this.setState({ email });
