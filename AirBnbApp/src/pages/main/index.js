@@ -28,7 +28,15 @@ import {
 	MarkerContainer,
 	MarkerLabel,
 	Form,
-	Input
+	Input,
+	DetailsModalFirstDivision,
+	DetailsModalSecondDivision,
+	DetailsModalThirdDivision,
+	DetailsModalBackButton,
+	DetailsModalPrice,
+	DetailsModalRealtyTitle,
+	DetailsModalRealtySubTitle,
+	DetailsModalRealtyAddress
 } from './styles';
 import api from '../../services/api';
 
@@ -44,6 +52,8 @@ class Main extends Component {
 		newRealty: false,
 		cameraModalOpened: false,
 		dataModalOpened: false,
+		detailsModalOpened: false,
+		realtyDetailed: null,
 		realtyData: {
 			location: {
 				latitude: null,
@@ -118,14 +128,13 @@ class Main extends Component {
 	renderLocations = () =>
 		this.state.locations.map((location, i) => (
 			<MapboxGL.PointAnnotation
-                key={i}
+				key={i}
 				id={location.id.toString()}
 				coordinate={[ parseFloat(location.longitude), parseFloat(location.latitude) ]}
 			>
 				<AnnotationContainer>
-					<AnnotationText>{location.price}</AnnotationText>
+					<AnnotationText onPress={() => this.handleDetailsModalClose(i)}>{location.price}</AnnotationText>
 				</AnnotationContainer>
-				<MapboxGL.Callout title={location.title} />
 			</MapboxGL.PointAnnotation>
 		));
 
@@ -308,17 +317,17 @@ class Main extends Component {
 			});
 
 			const imagesData = new FormData();
-            
+
 			images.forEach((image, index) => {
-                imagesData.append('image', {
-                    uri: image.uri,
+				imagesData.append('image', {
+					uri: image.uri,
 					type: 'image/jpeg',
 					name: `${newRealtyResponse.data.title}_${index}.jpg`
 				});
 			});
-            
-            console.log('newRealtyResponse.data.id', newRealtyResponse.data.id);
-            console.log('imagesData', imagesData);
+
+			console.log('newRealtyResponse.data.id', newRealtyResponse.data.id);
+			console.log('imagesData', imagesData);
 
 			await api.post(`/properties/${newRealtyResponse.data.id}/images`, imagesData);
 
@@ -326,10 +335,57 @@ class Main extends Component {
 			this.handleDataModalClose();
 			this.setState({ newRealty: false });
 		} catch (err) {
-            console.log(err);
-            console.log(JSON.stringify(err.message));
+			console.log(err);
+			console.log(JSON.stringify(err.message));
 		}
 	};
+
+	renderDetailsModal = () => (
+		<Modal
+			visible={this.state.detailsModalOpened}
+			transparent={false}
+			animationType="slide"
+			onRequestClose={() => this.handleDetailsModalClose(null)}
+		>
+			<ModalContainer>
+				<DetailsModalFirstDivision>
+					<DetailsModalBackButton onPress={() => this.handleDetailsModalClose(null)}>
+						Voltar
+					</DetailsModalBackButton>
+				</DetailsModalFirstDivision>
+				<DetailsModalSecondDivision>
+					<DetailsModalRealtyTitle>
+						{this.state.detailsModalOpened ? this.state.locations[this.state.realtyDetailed].title : ''}
+					</DetailsModalRealtyTitle>
+					<DetailsModalRealtySubTitle>Casa mobiliada com 3 quartos + quintal</DetailsModalRealtySubTitle>
+					<DetailsModalRealtyAddress>
+						{this.state.detailsModalOpened ? this.state.locations[this.state.realtyDetailed].address : ''}
+					</DetailsModalRealtyAddress>
+					{this.renderDetailsImagesList()}
+				</DetailsModalSecondDivision>
+				<DetailsModalThirdDivision>
+					<DetailsModalPrice>
+						R$ {this.state.detailsModalOpened ? this.state.locations[this.state.realtyDetailed].price : 0}
+					</DetailsModalPrice>
+				</DetailsModalThirdDivision>
+			</ModalContainer>
+		</Modal>
+	);
+
+	renderDetailsImagesList = () =>
+		this.state.detailsModalOpened && (
+			<ModalImagesList horizontal>
+				{this.state.locations[this.state.realtyDetailed].images.map((image) => (
+					<ModalImageItem key={image.id.toString()} source={{ uri: image.url }} resizeMode="stretch" />
+				))}
+			</ModalImagesList>
+		);
+
+	handleDetailsModalClose = (index) =>
+		this.setState({
+			detailsModalOpened: true,
+			realtyDetailed: index
+		});
 
 	render() {
 		return (
