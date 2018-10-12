@@ -4,10 +4,9 @@ const Property = use('App/Models/Property');
 const Helpers = use('Helpers');
 
 class ImageController {
-
-    async show({params, response}) {
-        return response.download(Helpers.tmpPath(`uploads/${params.path}`))
-    }
+	async show({ params, response }) {
+		return response.download(Helpers.tmpPath(`uploads/${params.path}`));
+	}
 
 	async store({ params, request }) {
 		const property = await Property.findOrFail(params.id);
@@ -17,7 +16,9 @@ class ImageController {
 			size: '2mb'
 		});
 
-		await images.moveAll(Helpers.tmpPath('uploads'), (file) => ({ name: `${Date.now()}-${file.clientName}` }));
+		await images.moveAll(Helpers.tmpPath('uploads'), (file) => ({
+			name: `${Date.now()}-${file.clientName}`
+		}));
 
 		if (!images.movedAll()) {
 			return images.errors();
