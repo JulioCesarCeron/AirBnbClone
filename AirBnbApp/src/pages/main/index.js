@@ -1,9 +1,13 @@
 import React, { Component } from 'react';
+
+import { StatusBar, Modal, AsyncStorage } from 'react-native';
+
 import MapboxGL from '@mapbox/react-native-mapbox-gl';
-import { StatusBar, Modal } from 'react-native';
+
 import { RNCamera } from 'react-native-camera';
 
-import { View } from 'react-native';
+import api from '../../services/api';
+
 import {
 	Container,
 	AnnotationContainer,
@@ -38,11 +42,8 @@ import {
 	DetailsModalRealtySubTitle,
 	DetailsModalRealtyAddress
 } from './styles';
-import api from '../../services/api';
 
-// import styles from './styles';
-
-class Main extends Component {
+export default class Main extends Component {
 	static navigationOptions = {
 		header: null
 	};
@@ -59,14 +60,14 @@ class Main extends Component {
 				latitude: null,
 				longitude: null
 			},
-			name: '',
-			price: '',
-			address: '',
+			name: 'Rocketseat',
+			price: '10000',
+			address: 'Rua zero, 0',
 			images: []
 		}
 	};
 
-	async componentDidMount() {
+	componentDidMount() {
 		this.getLocation();
 	}
 
@@ -81,7 +82,117 @@ class Main extends Component {
 
 			this.setState({ locations: response.data });
 		} catch (err) {
-			console.log(err);
+			console.tron.log(err);
+		}
+	};
+
+	handleNewRealtyPress = () => this.setState({ newRealty: !this.state.newRealty });
+
+	handleCameraModalClose = () => this.setState({ cameraModalOpened: !this.state.cameraModalOpened });
+
+	handleDataModalClose = () =>
+		this.setState({
+			dataModalOpened: !this.state.dataModalOpened,
+			cameraModalOpened: false
+		});
+
+	handleDetailsModalClose = (index) =>
+		this.setState({
+			detailsModalOpened: !this.state.detailsModalOpened,
+			realtyDetailed: index
+		});
+
+	handleGetPositionPress = async () => {
+		try {
+			const [ longitude, latitude ] = await this.map.getCenter();
+			this.setState({
+				cameraModalOpened: true,
+				realtyData: {
+					...this.state.realtyData,
+					location: {
+						latitude,
+						longitude
+					}
+				}
+			});
+		} catch (err) {
+			console.tron.log(err);
+		}
+	};
+
+	handleTakePicture = async () => {
+		if (this.camera) {
+			const options = { quality: 0.5, base64: true, forceUpOrientation: true, fixOrientation: true };
+			const data = await this.camera.takePictureAsync(options);
+			const { realtyData } = this.state;
+			this.setState({
+				realtyData: {
+					...realtyData,
+					images: [ ...realtyData.images, data ]
+				}
+			});
+		}
+	};
+
+	handleInputChange = (index, value) => {
+		const { realtyData } = this.state;
+		switch (index) {
+			case 'name':
+				this.setState({
+					realtyData: {
+						...realtyData,
+						name: value
+					}
+				});
+				break;
+			case 'address':
+				this.setState({
+					realtyData: {
+						...realtyData,
+						address: value
+					}
+				});
+				break;
+			case 'price':
+				this.setState({
+					realtyData: {
+						...realtyData,
+						price: value
+					}
+				});
+				break;
+		}
+	};
+
+	saveRealty = async () => {
+		try {
+			const { realtyData: { name, address, price, location: { latitude, longitude }, images } } = this.state;
+
+			const newRealtyResponse = await api.post('/properties', {
+				title: name,
+				address,
+				price,
+				latitude: Number(latitude.toFixed(6)),
+				longitude: Number(longitude.toFixed(6))
+			});
+
+			const imagesData = new FormData();
+
+			images.forEach((image, index) => {
+				imagesData.append('image', {
+					uri: image.uri,
+					type: 'image/jpeg',
+					name: `${newRealtyResponse.data.title}_${index}.jpg`
+				});
+			});
+
+			await api.post(`/properties/${newRealtyResponse.data.id}/images`, imagesData);
+
+			this.getLocation();
+			this.handleDataModalClose();
+			this.setState({ newRealty: false });
+		} catch (err) {
+			console.tron.log(err);
 		}
 	};
 
@@ -101,42 +212,44 @@ class Main extends Component {
 			</ButtonsWrapper>
 		);
 
-	handleNewRealtyPress = () => this.setState({ newRealty: !this.state.newRealty });
-
-	handleGetPositionPress = async () => {
-		try {
-			const [ longitude, latitude ] = await this.map.getCenter();
-			this.setState({
-				cameraModalOpened: true,
-				realtyData: {
-					...this.state.realtyData,
-					location: {
-						latitude,
-						longitude
-					}
-				}
-			});
-		} catch (err) {
-			console.log(err);
-		}
-	};
+	renderLocations = () =>
+		this.state.locations.map((location, index) => (
+			<MapboxGL.PointAnnotation
+				id={location.id.toString()}
+				coordinate={[ parseFloat(location.longitude), parseFloat(location.latitude) ]}
+				key={location.id.toString()}
+			>
+				<AnnotationContainer>
+					<AnnotationText onPress={() => this.handleDetailsModalClose(index)}>
+						{location.price}
+					</AnnotationText>
+				</AnnotationContainer>
+			</MapboxGL.PointAnnotation>
+		));
 
 	renderMarker = () =>
 		this.state.newRealty &&
 		!this.state.cameraModalOpened && <Marker resizeMode="contain" source={require('../../images/marker.png')} />;
 
-	renderLocations = () =>
-		this.state.locations.map((location, i) => (
-			<MapboxGL.PointAnnotation
-				key={i}
-				id={location.id.toString()}
-				coordinate={[ parseFloat(location.longitude), parseFloat(location.latitude) ]}
-			>
-				<AnnotationContainer>
-					<AnnotationText onPress={() => this.handleDetailsModalClose(i)}>{location.price}</AnnotationText>
-				</AnnotationContainer>
-			</MapboxGL.PointAnnotation>
-		));
+	renderImagesList = () =>
+		this.state.realtyData.images.length !== 0 && (
+			<ModalImagesListContainer>
+				<ModalImagesList horizontal>
+					{this.state.realtyData.images.map((image) => (
+						<ModalImageItem source={{ uri: image.uri }} resizeMode="stretch" />
+					))}
+				</ModalImagesList>
+			</ModalImagesListContainer>
+		);
+
+	renderDetailsImagesList = () =>
+		this.state.detailsModalOpened && (
+			<ModalImagesList horizontal>
+				{this.state.locations[this.state.realtyDetailed].images.map((image) => (
+					<ModalImageItem key={image.id} source={{ uri: image.url }} resizeMode="stretch" />
+				))}
+			</ModalImagesList>
+		);
 
 	renderCameraModal = () => (
 		<Modal
@@ -174,39 +287,6 @@ class Main extends Component {
 			</ModalContainer>
 		</Modal>
 	);
-
-	handleTakePicture = async () => {
-		if (this.camera) {
-			const options = { quality: 0.5, base64: true, forceUpOrientation: true, fixOrientation: true };
-			const data = await this.camera.takePictureAsync(options);
-			const { realtyData } = this.state;
-			this.setState({
-				realtyData: {
-					...realtyData,
-					images: [ ...realtyData.images, data ]
-				}
-			});
-		}
-	};
-
-	renderImagesList = () =>
-		this.state.realtyData.images.length !== 0 ? (
-			<ModalImagesListContainer>
-				<ModalImagesList horizontal>
-					{this.state.realtyData.images.map((image, i) => (
-						<ModalImageItem key={i} source={{ uri: image.uri }} resizeMode="stretch" />
-					))}
-				</ModalImagesList>
-			</ModalImagesListContainer>
-		) : null;
-
-	handleCameraModalClose = () => this.setState({ cameraModalOpened: !this.state.cameraModalOpened });
-
-	handleDataModalClose = () =>
-		this.setState({
-			dataModalOpened: !this.state.dataModalOpened,
-			cameraModalOpened: false
-		});
 
 	renderDataModal = () => (
 		<Modal
@@ -274,78 +354,12 @@ class Main extends Component {
 		</Modal>
 	);
 
-	handleInputChange = (index, value) => {
-		const { realtyData } = this.state;
-		switch (index) {
-			case 'name':
-				this.setState({
-					realtyData: {
-						...realtyData,
-						name: value
-					}
-				});
-				break;
-			case 'address':
-				this.setState({
-					realtyData: {
-						...realtyData,
-						address: value
-					}
-				});
-				break;
-			case 'price':
-				this.setState({
-					realtyData: {
-						...realtyData,
-						price: value
-					}
-				});
-				break;
-		}
-	};
-
-	saveRealty = async () => {
-		try {
-			const { realtyData: { name, address, price, location: { latitude, longitude }, images } } = this.state;
-
-			const newRealtyResponse = await api.post('/properties', {
-				title: name,
-				address,
-				price,
-				latitude: Number(latitude.toFixed(6)),
-				longitude: Number(longitude.toFixed(6))
-			});
-
-			const imagesData = new FormData();
-
-			images.forEach((image, index) => {
-				imagesData.append('image', {
-					uri: image.uri,
-					type: 'image/jpeg',
-					name: `${newRealtyResponse.data.title}_${index}.jpg`
-				});
-			});
-
-			console.log('newRealtyResponse.data.id', newRealtyResponse.data.id);
-			console.log('imagesData', imagesData);
-
-			await api.post(`/properties/${newRealtyResponse.data.id}/images`, imagesData);
-
-			this.getLocation();
-			this.handleDataModalClose();
-			this.setState({ newRealty: false });
-		} catch (err) {
-			console.log(err);
-			console.log(JSON.stringify(err.message));
-		}
-	};
-
 	renderDetailsModal = () => (
 		<Modal
 			visible={this.state.detailsModalOpened}
 			transparent={false}
 			animationType="slide"
-			onRequestClose={() => this.handleDetailsModalClose(null)}
+			onRequestClose={this.handleDetailsModalClose}
 		>
 			<ModalContainer>
 				<DetailsModalFirstDivision>
@@ -372,32 +386,17 @@ class Main extends Component {
 		</Modal>
 	);
 
-	renderDetailsImagesList = () =>
-		this.state.detailsModalOpened && (
-			<ModalImagesList horizontal>
-				{this.state.locations[this.state.realtyDetailed].images.map((image) => (
-					<ModalImageItem key={image.id.toString()} source={{ uri: image.url }} resizeMode="stretch" />
-				))}
-			</ModalImagesList>
-		);
-
-	handleDetailsModalClose = (index) =>
-		this.setState({
-			detailsModalOpened: true,
-			realtyDetailed: index
-		});
-
 	render() {
 		return (
 			<Container>
 				<StatusBar barStyle="light-content" />
 				<MapboxGL.MapView
-					ref={(map) => {
-						this.map = map;
-					}}
 					centerCoordinate={[ -49.6446024, -27.2108001 ]}
 					style={{ flex: 1 }}
 					styleURL={MapboxGL.StyleURL.Dark}
+					ref={(map) => {
+						this.map = map;
+					}}
 				>
 					{this.renderLocations()}
 				</MapboxGL.MapView>
@@ -405,9 +404,8 @@ class Main extends Component {
 				{this.renderMarker()}
 				{this.renderCameraModal()}
 				{this.renderDataModal()}
+				{this.renderDetailsModal()}
 			</Container>
 		);
 	}
 }
-
-export default Main;
